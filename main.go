@@ -4,13 +4,15 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
 var (
-	file1      = "files/input/file1.csv"
-	file2      = "files/input/file2.csv"
-	outputFile = "files/output/non_existing_rows.csv"
+	file1                   = "files/input/file1.csv"
+	file2                   = "files/input/file2.csv"
+	outputFile              = "files/output/non_existing_rows.csv"
+	nonClaimedQuestUserFile = "files/output/non_claimed_quest_user.csv"
 )
 
 func main() {
@@ -30,12 +32,16 @@ func main() {
 	}
 
 	// Get non-existing rows in file2 compared to file1
-	nonExistingRows := getNonExistingRows(rows1, rows2)
+	nonExistingRows, nonClaimedQuestUser := getNonExistingRows(rows1, rows2)
 
 	if len(nonExistingRows) == 0 {
 		fmt.Println("All rows in file1 exist in file2.")
 	} else {
-		fmt.Printf("The following rows in file1 do not exist in file2. Writing to %s\n", outputFile)
+		fmt.Println("================Summary================")
+		fmt.Printf("# of Failed Injection : %d", len(nonExistingRows)-1)
+		fmt.Println()
+		fmt.Printf("# of Not Claimed Medali : %d", len(nonClaimedQuestUser)-1)
+		fmt.Println()
 		err := writeNonExistingRowsToFile(nonExistingRows, outputFile)
 		if err != nil {
 			fmt.Println("Error writing non-existing rows to file:", err)
@@ -61,16 +67,27 @@ func readCSVFile(filename string) ([][]string, error) {
 }
 
 // GetNonExistingRows returns rows in rows1 that do not exist in rows2
-func getNonExistingRows(rows1, rows2 [][]string) [][]string {
+func getNonExistingRows(rows1, rows2 [][]string) (nonExistingRows, nonClaimedQuestUserData [][]string) {
 	existingRows := make(map[string]bool)
 
 	// Add all rows in rows2 to the existingRows map
-	for _, row := range rows2 {
-		key := strings.Join(row, ",")
+	for i, row := range rows2 {
+		newRow := []string{row[0], row[1]}
+		key := strings.Join(newRow, ",")
 		existingRows[key] = true
+		if i == 0 {
+			nonClaimedQuestUserData = append(nonClaimedQuestUserData, row)
+		}
+		status, _ := strconv.Atoi(row[2])
+		if status == 2 {
+			nonClaimedQuestUserData = append(nonClaimedQuestUserData, row)
+		}
 	}
 
-	nonExistingRows := [][]string{}
+	err := writeNonExistingRowsToFile(nonClaimedQuestUserData, nonClaimedQuestUserFile)
+	if err != nil {
+		fmt.Println("Error writing non-existing rows to file:", err)
+	}
 
 	// Check if each row in rows1 exists in the existingRows map
 	for i, row := range rows1 {
@@ -79,13 +96,14 @@ func getNonExistingRows(rows1, rows2 [][]string) [][]string {
 			nonExistingRows = append(nonExistingRows, row)
 		}
 
-		key := strings.Join(row, ",")
+		newRow := []string{row[0], row[1]}
+		key := strings.Join(newRow, ",")
 		if !existingRows[key] {
 			nonExistingRows = append(nonExistingRows, row)
 		}
 	}
 
-	return nonExistingRows
+	return nonExistingRows, nonClaimedQuestUserData
 }
 
 // WriteNonExistingRowsToFile writes the non-existing rows to a CSV file
